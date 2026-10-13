@@ -1,0 +1,473 @@
+{
+  "name": "Checkpoint 1 - Agente de Calificación de Leads",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "c5310bad-3aee-4d6c-8deb-d0153bc77621",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -624,
+        112
+      ],
+      "webhookId": "092d0e5f-ffb1-4b65-be93-d08f573f2c1c"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "### ROL ###\nSos el Asistente de Calificación de Leads del equipo comercial. Tu función es conversar con potenciales clientes que llegan por el chat, relevar sus datos y clasificar la oportunidad comercial.\n\n### ÁMBITO (qué NO podés hacer) ###\n- No enviás cotizaciones, precios ni presupuestos.\n- No aplicás descuentos ni prometés plazos de entrega.\n- No modificás ni borrás registros existentes de otros clientes.\n- No respondés consultas ajenas a la calificación comercial (soporte técnico, facturación, temas personales).\n\n### OBJETIVO OPERATIVO ###\nConvertir la conversación en un registro limpio para el equipo de ventas con estos datos: nombre, empresa, email, necesidad y presupuesto estimado. Pedí de a uno los datos que falten, con mensajes breves y cordiales.\n\n### CRITERIO DE CLASIFICACIÓN ###\n- ALTO: presupuesto estimado igual o mayor a USD 10.000, o necesidad de alcance corporativo/multisede.\n- ESTANDAR: presupuesto entre USD 1.000 y USD 9.999.\n- BAJO: presupuesto menor a USD 1.000 o sin presupuesto definido.\n\n### REGLAS DE USO DE HERRAMIENTAS ###\n- Usá la herramienta \"registrar_lead\" UNA sola vez por conversación, y solo cuando tengas como mínimo nombre, email y necesidad confirmados por el usuario.\n- Nunca inventes datos para completar campos. Si un dato no fue informado, dejalo como \"No informado\".\n\n### PROTOCOLO DE ESCALAMIENTO (GUARDRAILS) ###\n- Si el usuario pide una cotización, un descuento, un reembolso o hablar con una persona, respondé exactamente: \"Transfiero tu caso al equipo comercial para revisión humana.\" y no sigas el relevamiento.\n- Si la oportunidad queda clasificada como ALTO, registrala con próxima acción \"Revisión humana prioritaria\" e informá al usuario que un ejecutivo lo va a contactar.\n- Si no podés resolver la consulta dentro de tu ámbito, decilo con claridad en lugar de suponer.\n\n### FORMATO DE RESPUESTA ###\nEspañol neutro, tono profesional y cercano, máximo 3 oraciones por mensaje. Sin lenguaje inclusivo.",
+          "maxIterations": "={{ 8 }}",
+          "returnIntermediateSteps": true
+        }
+      },
+      "id": "11f4f0a8-ba41-4954-8824-83dfaf038e39",
+      "name": "AI Agent - Calificador de Leads",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -320,
+        112
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-5-5",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 5.5"
+        },
+        "options": {
+          "maxTokensToSample": 1024,
+          "temperature": 0.2
+        }
+      },
+      "id": "7b9a1570-8150-4201-8c1b-8b4e54f29c9c",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        -448,
+        352
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "tYCc3ujNjSSmK2Pu",
+          "name": "Anthropic account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "id": "75d1f11f-435c-421e-afb1-24a906071749",
+      "name": "Memoria de sesión",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -288,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Append row in sheet in GoogleUsá esta herramienta exclusivamente para guardar un lead comercial en la planilla de ventas cuando el usuario ya proporcionó de forma explícita, como mínimo, su nombre, su email y la necesidad que quiere resolver. Activala una sola vez por conversación, después de haber clasificado la oportunidad (ALTO, ESTANDAR o BAJO). No la uses para saludar, para responder dudas generales ni cuando falte el email.",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1aLhmJvxMxcoV_vIvgyHAtOzk6u0GiNH-L3ZfGI7fQPw",
+          "mode": "list",
+          "cachedResultName": "Leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1aLhmJvxMxcoV_vIvgyHAtOzk6u0GiNH-L3ZfGI7fQPw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1aLhmJvxMxcoV_vIvgyHAtOzk6u0GiNH-L3ZfGI7fQPw/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Fecha": "={{ $now.toFormat('yyyy-MM-dd HH:mm') }}",
+            "Nombre": "={{ $fromAI('nombre', 'Nombre y apellido del lead', 'string') }}",
+            "Empresa": "={{ $fromAI('empresa', 'Empresa del lead o No informado', 'string') }}",
+            "Necesidad": "={{ $fromAI('necesidad', 'Resumen en una oración de lo que necesita', 'string') }}",
+            "Presupuesto": "={{ $fromAI('presupuesto', 'Presupuesto estimado en USD o No informado', 'string') }}",
+            "Clasificacion": "={{ $fromAI('clasificacion', 'ALTO, ESTANDAR o BAJO', 'string') }}",
+            "Proxima_accion": "={{ $fromAI('proxima_accion', 'Próxima acción sugerida para el equipo comercial', 'string') }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Nombre",
+              "displayName": "Nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Empresa",
+              "displayName": "Empresa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Necesidad",
+              "displayName": "Necesidad",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Presupuesto",
+              "displayName": "Presupuesto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Clasificacion",
+              "displayName": "Clasificacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Proxima_accion",
+              "displayName": "Proxima_accion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "63ba87e5-e583-41ce-bfec-d5c6ba02ba2a",
+      "name": "registrar_lead",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.5,
+      "position": [
+        -128,
+        352
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Svewnd6xE9CI53Uf",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5e798a51-a66e-480b-aea8-0967b64aae9c",
+              "name": "sesion",
+              "value": "={{ $('Chat Trigger').item.json.sessionId }}",
+              "type": "string"
+            },
+            {
+              "id": "4bd601af-d462-4db6-bc8c-ec1ca4ff18f1",
+              "name": "consulta",
+              "value": "={{ $('Chat Trigger').item.json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "bdc5f3bb-59d8-4a0e-a3eb-fea18bd6312d",
+              "name": "respuesta",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "c496bfc7-d837-452f-80cb-c5bd15852c7a",
+              "name": "herramientas_usadas",
+              "value": "={{ ($json.intermediateSteps || []).map(s => s.action.tool).join(', ') || 'ninguna' }}",
+              "type": "string"
+            },
+            {
+              "id": "80e63fa5-2314-46c5-8b6c-f4499d6d9713",
+              "name": "vueltas",
+              "value": "={{ ($json.intermediateSteps || []).length }}",
+              "type": "number"
+            },
+            {
+              "id": "90727e7a-6d26-4384-9d7c-1ee5dd9a630f",
+              "name": "detalle_tool",
+              "value": "={{ JSON.stringify(($json.intermediateSteps || []).map(s => ({ tool: s.action.tool, input: s.action.toolInput }))) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f877f954-b0f2-49b8-bc74-088a3f57003d",
+      "name": "Preparar log de auditoría",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0BLV7G0ARH",
+          "mode": "list",
+          "cachedResultName": "aprobaciones-propuestas"
+        },
+        "text": "=✅ *Tarea completada — Agente de Calificación de Leads*\n*Sesión:* {{ $json.sesion }}\n*Consulta del usuario:* {{ $json.consulta }}\n*Herramientas usadas:* {{ $json.herramientas_usadas }} ({{ $json.vueltas }} llamadas)\n*Datos enviados a la herramienta:* {{ $json.detalle_tool }}\n*Respuesta del agente:* {{ $json.respuesta }}\n_{{ $now.toFormat('dd/MM/yyyy HH:mm') }}_",
+        "otherOptions": {}
+      },
+      "id": "45865e8d-6bab-4336-98b1-31ddbf11fde6",
+      "name": "Log de observabilidad (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        240,
+        0
+      ],
+      "webhookId": "598afb71-d030-44cd-94d0-75730987418e",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "qC6i5TuQlLTz5Sat",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "688fd959-cfb3-44a3-8528-c80e1d533cc1",
+              "name": "output",
+              "value": "={{ $('Preparar log de auditoría').item.json.respuesta }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b5ea6b8e-e7b0-4e98-b694-df766489a971",
+      "name": "Respuesta al usuario",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0BLV7G0ARH",
+          "mode": "list",
+          "cachedResultName": "aprobaciones-propuestas"
+        },
+        "text": "=⚠️ *Agente de Calificación de Leads — requiere atención manual*\nEl agente no completó la tarea (error del modelo/herramienta o límite de 8 iteraciones alcanzado).\n*Consulta del usuario:* {{ $('Chat Trigger').item.json.chatInput }}\n*Detalle:* {{ $json.error }}",
+        "otherOptions": {}
+      },
+      "id": "9d6d0a08-eacb-41e0-8c1c-e6e2f32eb308",
+      "name": "Alerta de contingencia (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        0,
+        224
+      ],
+      "webhookId": "606eee25-ad8c-4617-a027-b3dc91a555e2",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "qC6i5TuQlLTz5Sat",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7ab430a4-adf4-4848-8468-824a44879f1a",
+              "name": "output",
+              "value": "Gracias por tu consulta. En este momento no pude procesarla automáticamente: un integrante del equipo comercial la va a revisar y te va a contactar.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e5e86724-3ccc-4950-a2dd-7b75885ea9b2",
+      "name": "Respuesta de contingencia",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        224
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Calificador de Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Calificador de Leads",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria de sesión": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent - Calificador de Leads",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "registrar_lead": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent - Calificador de Leads",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Calificador de Leads": {
+      "main": [
+        [
+          {
+            "node": "Preparar log de auditoría",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alerta de contingencia (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar log de auditoría": {
+      "main": [
+        [
+          {
+            "node": "Log de observabilidad (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log de observabilidad (Slack)": {
+      "main": [
+        [
+          {
+            "node": "Respuesta al usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerta de contingencia (Slack)": {
+      "main": [
+        [
+          {
+            "node": "Respuesta de contingencia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "2c221454-31ff-436f-916a-eeaabd4aca1a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8ea4e3c099bce3a9f65fcdd01ffe81594090e8fe4c31000c31fc637b3d670d72"
+  },
+  "nodeGroups": [],
+  "id": "PK5OsFrJoEB01Bf3",
+  "tags": []
+}
